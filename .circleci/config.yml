@@ -1,12 +1,11 @@
 version: 2.1
 
 references:
-  defaults: &defaults
-    working_directory: ~/repo
   nodejs_versions:
     - &nodejs_current "10"
     - &nodejs_next "12"
     - &nodejs_experimental "14"
+
   nodejs_enum: &nodejs_enum
     type: enum
     default: *nodejs_current
@@ -14,6 +13,9 @@ references:
       - *nodejs_current
       - *nodejs_next
       - *nodejs_experimental
+  repo_path: &repo_path ~/repo
+  defaults: &defaults
+    working_directory: *repo_path
 
 workflows:
   node-tests:
@@ -67,6 +69,11 @@ jobs:
       - run_npm_build:
           node_env: test
       - run: npm run test
+      - when:
+          condition:
+            equal: [*nodejs_current, << parameters.nodejs >>]
+          steps:
+            - persist_project_repo
 
   release-tag:
     parameters:
@@ -77,22 +84,29 @@ jobs:
       - image: circleci/node:<< parameters.nodejs >>
     steps:
       - attach_project_repo
-      - run_npm_ci
       - run_npm_build:
           node_env: production
       - run:
           name: npm registry auth
-          command: echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/repo/.npmrc
+          command: echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/.npmrc
       - run:
           name: npm registry publish
           command: npm publish
 
 commands:
   attach_project_repo:
-    description: get repo from workspace
+    description: attach repo from workspace
     steps:
       - attach_workspace:
-          at: ~/repo
+          at: *repo_path
+
+  persist_project_repo:
+    description: persist repo in workspace
+    steps:
+      - persist_to_workspace:
+          root: *repo_path
+          paths: .
+
 
   restore_build_cache:
     description: restore npm package cache
@@ -123,7 +137,7 @@ commands:
       - run: npm ci
 
   run_npm_build:
-    description: build project
+    description: build project in << parameters.node_env >> mode
     parameters:
       node_env:
         type: enum
