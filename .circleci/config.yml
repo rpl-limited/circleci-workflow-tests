@@ -91,7 +91,7 @@ jobs:
           command: echo '//registry.npmjs.org/:_authToken=${NPM_TOKEN}' > .npmrc
       - run:
           name: npm registry publish
-          command: npm publish
+          command: npm publish --access=public
 
 commands:
   attach_project_repo:
