@@ -1,7 +1,129 @@
 version: 2.1
-orbs:
-  node: circleci/node@3.0.0
+
+references:
+  defaults: &defaults
+    working_directory: ~/repo
+
 workflows:
   node-tests:
     jobs:
-      - node/test
+      - build:
+          name: build-nodejs-current
+          nodejs: "10"
+          filters:
+            tags:
+              only: /.*/
+      - build:
+          name: build-nodejs-next
+          nodejs: "12"
+          filters:
+            tags:
+              only: /.*/
+      - build:
+          name: build-nodejs-experimental
+          nodejs: "14"
+          filters:
+            tags:
+              only: /.*/
+      - release-tag:
+          nodejs: "10"
+          requires:
+            - build-nodejs-current
+            - build-nodejs-next
+            - build-nodejs-experimental
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/
+
+jobs:
+  build:
+    parameters:
+      nodejs:
+        type: enum
+        default: "10"
+        enum: ["10", "12", "14"]
+    <<: *defaults
+    docker:
+      - image: circleci/node:<< parameters.nodejs >>
+    steps:
+      - checkout
+      - restore_build_cache:
+          suffix: << parameters.nodejs >>
+      - run_npm_ci
+      - save_build_cache:
+          suffix: << parameters.nodejs >>
+      - run_npm_build:
+          node_env: test
+      - run: npm run test
+
+  release-tag:
+    parameters:
+      nodejs:
+        type: enum
+        default: "10"
+        enum: ["10", "12", "14"]
+    <<: *defaults
+    docker:
+      - image: circleci/node:<< parameters.nodejs >>
+    steps:
+      - attach_workspace:
+          at: ~/repo
+      - run_npm_ci
+      - run_npm_build:
+          node_env: production
+      - run:
+          name: npm registry auth
+          command: echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/repo/.npmrc
+      - run:
+          name: npm registry publish
+          command: npm publish
+
+commands:
+  restore_build_cache:
+    description: restore npm package cache
+    parameters:
+      suffix:
+        type: string
+        default: default
+    steps:
+      - restore_cache:
+          keys:
+            - npm-packages-{{ checksum "package-lock.json" }}-<< parameters.suffix >>
+
+  save_build_cache:
+    description: save npm package cache
+    parameters:
+      suffix:
+        type: string
+        default: default
+    steps:
+      - save_cache:
+          key: npm-packages-{{ checksum "package-lock.json" }}-<< parameters.suffix >>
+          paths:
+            - ./node_modules
+
+  run_npm_ci:
+    description: install npm dependencies
+    steps:
+      - run: npm ci
+
+  run_npm_build:
+    description: build project
+    parameters:
+      node_env:
+        type: enum
+        default: production
+        enum: ["production", "test"]
+    steps:
+      - run: NODE_ENV=<< parameters.node_env >> npm run build --if-present
+
+  # This is required to avoid a `EACCES` when running `npm link` (which is
+  # executed in the test suite).
+  configure_global_npm:
+    description: create custom directory for global npm installs
+    steps:
+      - run: |
+          mkdir -p ~/.npm-global
+          npm config set prefix '~/.npm-global'
