@@ -57,6 +57,7 @@ jobs:
     docker:
       - image: circleci/node:<< parameters.nodejs >>
     steps:
+      - attach_project_repo
       - checkout
       - restore_build_cache:
           suffix: << parameters.nodejs >>
@@ -75,8 +76,7 @@ jobs:
     docker:
       - image: circleci/node:<< parameters.nodejs >>
     steps:
-      - attach_workspace:
-          at: ~/repo
+      - attach_project_repo
       - run_npm_ci
       - run_npm_build:
           node_env: production
@@ -88,6 +88,12 @@ jobs:
           command: npm publish
 
 commands:
+  attach_project_repo:
+    description: get repo from workspace
+    steps:
+      - attach_workspace:
+          at: ~/repo
+
   restore_build_cache:
     description: restore npm package cache
     parameters:
