@@ -3,30 +3,41 @@ version: 2.1
 references:
   defaults: &defaults
     working_directory: ~/repo
+  nodejs_versions:
+    - &nodejs_current "10"
+    - &nodejs_next "12"
+    - &nodejs_experimental "14"
+  nodejs_enum: &nodejs_enum
+    type: enum
+    default: *nodejs_current
+    enum:
+      - *nodejs_current
+      - *nodejs_next
+      - *nodejs_experimental
 
 workflows:
   node-tests:
     jobs:
       - build:
           name: build-nodejs-current
-          nodejs: "10"
+          nodejs: *nodejs_current
           filters:
             tags:
               only: /.*/
       - build:
           name: build-nodejs-next
-          nodejs: "12"
+          nodejs: *nodejs_next
           filters:
             tags:
               only: /.*/
       - build:
           name: build-nodejs-experimental
-          nodejs: "14"
+          nodejs: *nodejs_experimental
           filters:
             tags:
               only: /.*/
       - release-tag:
-          nodejs: "10"
+          nodejs: *nodejs_current
           requires:
             - build-nodejs-current
             - build-nodejs-next
@@ -41,9 +52,7 @@ jobs:
   build:
     parameters:
       nodejs:
-        type: enum
-        default: "10"
-        enum: ["10", "12", "14"]
+        <<: *nodejs_enum
     <<: *defaults
     docker:
       - image: circleci/node:<< parameters.nodejs >>
@@ -61,9 +70,7 @@ jobs:
   release-tag:
     parameters:
       nodejs:
-        type: enum
-        default: "10"
-        enum: ["10", "12", "14"]
+        <<: *nodejs_enum
     <<: *defaults
     docker:
       - image: circleci/node:<< parameters.nodejs >>
