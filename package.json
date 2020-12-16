@@ -1,6 +1,6 @@
 {
   "name": "@rpl-limited/circleci-workflow-test",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "just a sandbox repo to test circleci workflow features",
   "files": [
     "index.js",
