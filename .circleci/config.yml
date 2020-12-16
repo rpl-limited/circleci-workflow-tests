@@ -1,5 +1,8 @@
 version: 2.1
 
+orbs:
+  win: circleci/windows@1.0.0
+
 references:
   nodejs_versions:
     - &nodejs_current "10"
@@ -38,12 +41,14 @@ workflows:
           filters:
             tags:
               only: /.*/
+      - test-windows
       - release-tag:
           nodejs: *nodejs_current
           requires:
             - build-nodejs-current
             - build-nodejs-next
             - build-nodejs-experimental
+            - test-windows
           filters:
             tags:
               only: /.*/
@@ -74,6 +79,22 @@ jobs:
             equal: [*nodejs_current, << parameters.nodejs >>]
           steps:
             - persist_project_repo
+
+  test-windows:
+    <<: *defaults
+    executor:
+      name: win/vs2019
+      shell: powershell.exe
+    steps:
+      - checkout
+      - restore_build_cache:
+          suffix: windows
+      - run_npm_ci
+      - save_build_cache:
+          suffix: windows
+      - run_npm_build:
+          node_env: test
+      - run: npm run test
 
   release-tag:
     parameters:
@@ -106,7 +127,6 @@ commands:
       - persist_to_workspace:
           root: *repo_path
           paths: .
-
 
   restore_build_cache:
     description: restore npm package cache
@@ -144,7 +164,10 @@ commands:
         default: production
         enum: ["production", "test"]
     steps:
-      - run: NODE_ENV=<< parameters.node_env >> npm run build --if-present
+      - run:
+          command: npm run build --if-present
+          environment:
+            NODE_ENV: << parameters.node_env >>
 
   # This is required to avoid a `EACCES` when running `npm link` (which is
   # executed in the test suite).
